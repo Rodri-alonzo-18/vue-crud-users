@@ -2,39 +2,76 @@
   <div class="modal-mask">
     <div class="modal-container modal-anim user-form-modal" @click.stop>
       <h2 class="user-form-title">{{ isEditing ? 'Editar usuario' : 'Añadir usuario' }}</h2>
-      <form @submit.prevent="submit" class="user-form">
+      <Form @submit="submit" :validation-schema="schema" class="user-form" ref="form">
         <div class="user-form-group">
-          <label class="user-form-label">Nombre</label>
-          <input v-model="user.name" class="user-form-input" required placeholder="Nombre" />
+          <label class="user-form-label">Nombre *</label>
+          <Field 
+            name="name" 
+            v-model="user.name" 
+            class="user-form-input" 
+            placeholder="Nombre"
+            :class="{ 'input-error': errors.name }"
+          />
+          <ErrorMessage name="name" class="error-message" />
         </div>
+        
         <div class="user-form-group">
-          <label class="user-form-label">Usuario</label>
-          <input v-model="user.username" class="user-form-input" required placeholder="Usuario" />
+          <label class="user-form-label">Usuario *</label>
+          <Field 
+            name="username" 
+            v-model="user.username" 
+            class="user-form-input" 
+            placeholder="Usuario"
+            :class="{ 'input-error': errors.username }"
+          />
+          <ErrorMessage name="username" class="error-message" />
         </div>
+        
         <div class="user-form-group">
-          <label class="user-form-label">Email</label>
-          <input v-model="user.email" class="user-form-input" type="email" required placeholder="Email" />
+          <label class="user-form-label">Email *</label>
+          <Field 
+            name="email" 
+            v-model="user.email" 
+            class="user-form-input" 
+            placeholder="Email"
+            :class="{ 'input-error': errors.email }"
+          />
+          <ErrorMessage name="email" class="error-message" />
         </div>
+        
         <div class="user-form-group">
-          <label class="user-form-label">Teléfono</label>
-          <input v-model="user.phone" class="user-form-input" required placeholder="Teléfono" />
+          <label class="user-form-label">Teléfono *</label>
+          <Field 
+            name="phone" 
+            v-model="user.phone" 
+            class="user-form-input" 
+            placeholder="Teléfono"
+            :class="{ 'input-error': errors.phone }"
+          />
+          <ErrorMessage name="phone" class="error-message" />
         </div>
+        
         <div class="user-form-actions">
           <button type="button" class="user-form-cancel" @click="close">Cancelar</button>
           <button type="submit" class="user-form-submit">{{ isEditing ? 'Actualizar' : 'Guardar' }}</button>
         </div>
-      </form>
+      </Form>
     </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, computed, watch } from 'vue'
+import { reactive, computed, watch, ref } from 'vue'
+import { Form, Field, ErrorMessage } from 'vee-validate'
+import * as yup from 'yup'
+
 const emit = defineEmits(['save', 'close'])
 const props = defineProps({
   show: Boolean,
   userToEdit: Object
 })
+
+const form = ref(null)
 const user = reactive({
   id: null,
   name: '',
@@ -42,7 +79,50 @@ const user = reactive({
   email: '',
   phone: ''
 })
+
 const isEditing = computed(() => !!props.userToEdit?.id)
+
+// Variable para almacenar errores
+const errors = ref({})
+
+// Esquema de validación con yup
+const schema = yup.object({
+  name: yup
+    .string()
+    .required('El nombre es obligatorio')
+    .min(2, 'El nombre debe tener al menos 2 caracteres')
+    .max(50, 'El nombre no puede exceder 50 caracteres'),
+  
+  username: yup
+    .string()
+    .required('El nombre de usuario es obligatorio')
+    .min(3, 'El usuario debe tener al menos 3 caracteres')
+    .max(30, 'El usuario no puede exceder 30 caracteres')
+    .matches(/^[a-zA-Z0-9._]+$/, 'El usuario solo puede contener letras, números, puntos y guiones bajos'),
+  
+  email: yup
+    .string()
+    .required('El email es obligatorio')
+    .email('Debe ser un email válido')
+    .test('contains-at', 'El email debe contener "@"', (value) => {
+      return value && value.includes('@')
+    }),
+  
+  phone: yup
+    .string()
+    .required('El teléfono es obligatorio')
+    .test('min-digits', 'El teléfono debe tener al menos 8 dígitos', (value) => {
+      if (!value) return false
+      // Eliminar caracteres no numéricos y contar dígitos
+      const digits = value.replace(/\D/g, '')
+      return digits.length >= 8
+    })
+    .test('valid-phone', 'El teléfono debe contener solo números, espacios, puntos, guiones o paréntesis', (value) => {
+      if (!value) return false
+      return /^[\d\s\-\(\)\+\.]+$/.test(value)
+    })
+})
+
 // Cargar los datos del usuario si se está editando
 watch(() => props.userToEdit, (newUser) => {
   if (newUser) {
@@ -53,20 +133,19 @@ watch(() => props.userToEdit, (newUser) => {
     user.phone = newUser.phone
   }
 }, { immediate: true })
-function submit() {
-  // Validación simple de email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(user.email)) {
-    alert('Email no válido')
-    return
-  }
+
+function submit(values, { resetForm }) {
+  // Si llegamos aquí, la validación ya pasó
   emit('save', { ...user })
+  resetForm()
   reset()
 }
+
 function close() {
   emit('close')
   reset()
 }
+
 function reset() {
   user.id = null
   user.name = ''
@@ -222,5 +301,23 @@ input {
 }
 .user-form-cancel:hover {
   background: #cfd4db;
+}
+
+/* Estilos para mensajes de error */
+.error-message {
+  color: #f44336;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+}
+
+.input-error {
+  border-color: #f44336 !important;
+  background-color: #fff5f5 !important;
+}
+
+.input-error:focus {
+  border-color: #f44336 !important;
+  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2) !important;
 }
 </style>

@@ -32,16 +32,13 @@
           </tbody>
         </table>
       </div>
-      <div v-if="loading" class="loading-indicator">Cargando usuarios...</div>
+      <div v-if="loading" class="loading-indicator">
+        <i class="pi pi-spin pi-spinner loading-icon"></i>
+        <span>Cargando usuarios...</span>
+      </div>
     </div>
 
-    <!-- Modales personalizados dentro del template principal -->
-    <CustomModal
-      :show="showSuccessModal"
-      title="¡Éxito!"
-      message="Usuario creado correctamente."
-      @ok="showSuccessModal = false"
-    />
+    <!-- Modal de confirmación para eliminar -->
     <CustomModal
       :show="showConfirmDelete"
       title="¿Eliminar usuario?"
@@ -51,13 +48,21 @@
       @cancel="cancelDelete"
     />
   </div>
+
+  <!-- Notificaciones -->
+  <NotificationToast
+    :show="notification.show"
+    :message="notification.message"
+    :type="notification.type"
+    @close="hideNotification"
+  />
 </template>
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import UserModal from './UserModal.vue'
-
 import CustomModal from './CustomModal.vue'
+import NotificationToast from './NotificationToast.vue'
 
 
 const users = ref([])
@@ -67,34 +72,58 @@ const search = ref('')
 const userToEdit = ref(null)
 
 // Para modales personalizados
-const showSuccessModal = ref(false)
 const showConfirmDelete = ref(false)
 const userIdToDelete = ref(null)
 
+// Para notificaciones
+const notification = ref({
+  show: false,
+  message: '',
+  type: 'success'
+})
+
 
 onMounted(async () => {
+  const start = Date.now()
+
   // Intentar cargar usuarios desde localStorage
   const local = localStorage.getItem('users')
+  let loadedFromLocal = false
+
   if (local) {
-    users.value = JSON.parse(local)
-    loading.value = false
-    return
+    try {
+      const parsed = JSON.parse(local)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        users.value = parsed
+        loadedFromLocal = true
+      }
+    } catch (e) {
+    }
   }
-  // Si no hay en localStorage, cargar desde la API
-  try {
-    const res = await fetch('https://jsonplaceholder.typicode.com/users')
-    const data = await res.json()
-    users.value = data.map(u => ({
-      id: u.id,
-      name: u.name,
-      username: u.username,
-      email: u.email,
-      phone: u.phone
-    }))
-    localStorage.setItem('users', JSON.stringify(users.value))
-  } finally {
-    loading.value = false
+
+  // Si no hay usuarios válidos en localStorage, cargar desde la API
+  if (!loadedFromLocal) {
+    try {
+      const res = await fetch('https://jsonplaceholder.typicode.com/users')
+      const data = await res.json()
+      users.value = data.map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        email: u.email,
+        phone: u.phone
+      }))
+      localStorage.setItem('users', JSON.stringify(users.value))
+    } catch (e) {
+    }
   }
+
+  const elapsed = Date.now() - start
+  if (elapsed < 2000) {
+    await new Promise(resolve => setTimeout(resolve, 2000 - elapsed))
+  }
+
+  loading.value = false
 })
 
 // Guardar en localStorage cada vez que cambia el array de usuarios
@@ -117,6 +146,18 @@ function openAddModal() {
   showModal.value = true
 }
 
+function showNotification(message, type = 'success') {
+  notification.value = {
+    show: true,
+    message: message,
+    type: type
+  }
+}
+
+function hideNotification() {
+  notification.value.show = false
+}
+
 function saveUser(userData) {
   // Validación simple de email
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -130,6 +171,7 @@ function saveUser(userData) {
     const index = users.value.findIndex(u => u.id === userData.id)
     if (index !== -1) {
       users.value[index] = userData
+      showNotification('Usuario actualizado correctamente', 'success')
     }
   } else {
     // Agregar nuevo usuario
@@ -138,8 +180,7 @@ function saveUser(userData) {
       ...userData,
       id: nextId
     })
-    // Mostrar modal de éxito
-    showSuccessModal.value = true
+    showNotification('Nuevo usuario creado exitosamente', 'success')
   }
   // localStorage se actualiza automáticamente por el watch
   closeModal()
@@ -164,6 +205,7 @@ function confirmDelete() {
   users.value = users.value.filter(u => u.id !== userIdToDelete.value)
   showConfirmDelete.value = false
   userIdToDelete.value = null
+  showNotification('Usuario eliminado exitosamente', 'danger')
 }
 
 function cancelDelete() {
@@ -286,5 +328,18 @@ hr {
   margin: 1.5rem 0;
   border: none;
   border-top: 1px solid #eee;
+}
+
+.loading-indicator {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #111;
+}
+
+.loading-icon {
+  font-size: 2rem;
 }
 </style>
