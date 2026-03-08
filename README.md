@@ -33,7 +33,7 @@ validaciones de formularios y una experiencia de usuario cómoda y clara.
 Clonar el repositorio y entrar en la carpeta del proyecto:
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone <https://github.com/Rodri-alonzo-18/vue-crud-users.git>
 cd vue-crud-users
 ```
 
